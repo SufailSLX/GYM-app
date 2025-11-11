@@ -9,48 +9,46 @@ const authRoute = require("./routes/auth");
 
 const app = express();
 
-// ✅ Connect MongoDB
+// ✅ Connect to MongoDB
 connectDB();
 
-// ✅ Use CORS properly
+// ✅ Define allowed origins
 const allowedOrigins = [
   process.env.FRONTEND_URL || "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like mobile apps, curl)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// ✅ CORS configuration - Simplified for development
+app.use((req, res, next) => {
+  // Allow all origins for development
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 // ✅ Parse JSON bodies
 app.use(express.json());
 
-// ✅ Handle preflight for all routes
-app.use(cors());
-
-// ✅ Routes
+// ✅ API Routes
 app.use("/api/auth", authRoute);
 app.use("/api/plans", plansRoute);
 app.use("/api/payment", paymentRoute);
 
-// ✅ Test route
-app.get("/", (req, res) => res.send("🚀 API is running..."));
+// ✅ Test Route
+app.get("/", (req, res) => {
+  res.send("🚀 API is running...");
+});
 
-// ✅ Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
-  console.log(`✅ Server started on port ${PORT} | http://localhost:${PORT}`)
-);
+// ✅ Start the server
+const PORT = 3000; // Force port 3000 to avoid AirPlay conflict
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server started on port ${PORT} | http://localhost:${PORT}`);
+});
