@@ -7,6 +7,19 @@ const Member = require("../models/Member");
 const auth = require("../middleware/auth");
 require("dotenv").config();
 
+// Plan durations in days
+const PLAN_DURATIONS = {
+  basic: 30,
+  pro: 90,
+  premium: 365,
+};
+
+// Helper function to check if subscription is active
+const isSubscriptionActive = (subscriptionValidTill) => {
+  if (!subscriptionValidTill) return false;
+  return new Date(subscriptionValidTill) > new Date();
+};
+
 const router = express.Router();
 
 const razorpay = new Razorpay({
@@ -87,14 +100,7 @@ router.post("/verify", auth, async (req, res) => {
 
     // Handle subscription activation
     if (isSubscription && planId) {
-      // Get plan duration from planId
-      // This matches the plans in routes/plans.js
-      const planDurations = {
-        basic: 30,
-        pro: 90,
-        premium: 365,
-      };
-      const duration = planDurations[planId] || 30;
+      const duration = PLAN_DURATIONS[planId] || 30;
       
       // Calculate subscription expiry date
       const subscriptionValidTill = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
@@ -124,6 +130,51 @@ router.post("/verify", auth, async (req, res) => {
   } catch (err) {
     console.error("Payment verification error:", err);
     return res.status(500).json({ error: "Failed to verify payment", details: err.message });
+  }
+});
+
+// GET /api/payment/subscription/status
+router.get("/subscription/status", auth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Check if subscription is active
+    const isActive = isSubscriptionActive(user.subscriptionValidTill);
+    
+    // If subscription is active, return the details
+    if (isActive) {
+      // Find the most recent payment for this user
+      const latestPayment = await Payment.findOne({
+        user: userId,
+        isSubscription: true,
+        status: "paid"
+      }).sort({ createdAt: -1 });
+
+      return res.json({
+        isActive: true,
+        validTill: user.subscriptionValidTill,
+        planId: latestPayment?.planId || null,
+        daysRemaining: Math.ceil((new Date(user.subscriptionValidTill) - new Date()) / (1000 * 60 * 60 * 24))
+      });
+    }
+
+    // If no active subscription
+    return res.json({
+      isActive: false,
+      message: "No active subscription found"
+    });
+  } catch (err) {
+    console.error("Subscription status check error:", err);
+    return res.status(500).json({ 
+      error: "Failed to check subscription status", 
+      details: err.message 
+    });
   }
 });
 

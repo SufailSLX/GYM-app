@@ -43,10 +43,14 @@ const OwnerDashboard = () => {
         </h1>
         <button
           onClick={() => {
-            localStorage.removeItem("role");
-            window.location.reload();
+            // Clear all authentication related data
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('role');
+            // Redirect to login page
+            window.location.href = '/';
           }}
-          className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+          className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
         >
           Logout
         </button>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const DEMO_USER = {
   username: "GYM Member",
@@ -17,6 +18,7 @@ const chartData = [
 ];
 
 const DetailsPage = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(DEMO_USER);
   const [loading, setLoading] = useState(true);
   const [activeCard, setActiveCard] = useState(0);
@@ -27,8 +29,13 @@ const DetailsPage = () => {
   }, []);
 
   const logoutHandler = () => {
+    // Clear all auth related data
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     localStorage.removeItem("role");
-    window.location.reload();
+    
+    // Redirect to login page
+    navigate("/login");
   };
 
   if (loading) {

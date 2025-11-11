@@ -4,11 +4,13 @@ import Loader from "./components/Loader";
 import LoginForm from "./components/LoginForm";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import UserPlans from "./pages/UserPlans";
-import { authAPI } from "./services/api";
+import DetailsPage from "./pages/DetailsPage";
+import { authAPI, paymentAPI } from "./services/api";
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   useEffect(() => {
     // Check authentication on app load
@@ -26,6 +28,20 @@ function App() {
           const userRole = storedRole || (user.email === "gym@mail.com" ? "owner" : "user");
           setRole(userRole);
           localStorage.setItem("user", JSON.stringify(user));
+
+          // If user is not admin, check for active subscription
+          if (userRole === 'user') {
+            try {
+              const subscriptionResponse = await paymentAPI.checkSubscription();
+              if (subscriptionResponse.data && subscriptionResponse.data.isActive) {
+                setHasActiveSubscription(true);
+              }
+            } catch (error) {
+              console.error('Error checking subscription:', error);
+              // If there's an error, assume no active subscription
+              setHasActiveSubscription(false);
+            }
+          }
         } catch (error) {
           // Token invalid, clear storage
           localStorage.removeItem("token");
@@ -51,7 +67,12 @@ function App() {
     <Router>
       <Routes>
         {role === "owner" && <Route path="/*" element={<OwnerDashboard />} />}
-        {role === "user" && <Route path="/*" element={<UserPlans />} />}
+        {role === "user" && hasActiveSubscription && (
+          <Route path="/*" element={<DetailsPage />} />
+        )}
+        {role === "user" && !hasActiveSubscription && (
+          <Route path="/*" element={<UserPlans />} />
+        )}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

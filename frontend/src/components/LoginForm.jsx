@@ -155,7 +155,7 @@ const LoginForm = ({ setRole }) => {
     <div className="flex justify-center items-center min-h-screen bg-gray-100">
       <ToastContainer position="top-right" autoClose={3000} />
       <form className="form shadow-lg" onSubmit={handleSubmit}>
-        <h2 className="text-xl font-semibold text-center mb-4">Login</h2>
+        <h2 className="text-xl font-semibold text-center mb-4">GYM Login</h2>
         <div className="flex-column">
           <label>Email</label>
         </div>
