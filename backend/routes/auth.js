@@ -20,11 +20,12 @@ router.post("/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
+    // Create user with default role 'user'
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
+      role: 'user' // Default role
     });
 
     // Generate token
@@ -38,6 +39,7 @@ router.post("/register", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
         isSubscribed: user.isSubscribed,
       },
     });
@@ -74,6 +76,7 @@ router.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
         isSubscribed: user.isSubscribed,
       },
     });

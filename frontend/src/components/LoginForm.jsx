@@ -43,10 +43,9 @@ const LoginForm = ({ setRole }) => {
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
         
-        // Set role (you might want to get this from the user object in the future)
-        const role = user.email === "gym@mail.com" ? "owner" : "user";
-        localStorage.setItem("role", role);
-        setRole(role);
+        // Set role from the user object
+        localStorage.setItem("role", user.role);
+        setRole(user.role);
         
         toast.success("Login successful!");
         // Redirect or perform any post-login action
@@ -94,10 +93,11 @@ const LoginForm = ({ setRole }) => {
       if (response.data && response.data.token) {
         const { token, user } = response.data;
 
-        // Store token and user data
+        // Store token and user data with role from the response
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
-        localStorage.setItem("role", "user");
+        localStorage.setItem("role", user.role);
+        setRole(user.role);
         setRole("user");
 
         toast.success(`✅ Account created for ${username}!`);

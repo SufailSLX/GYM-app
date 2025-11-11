@@ -54,6 +54,7 @@ export const paymentAPI = {
   createOrder: (data) => api.post("/payment/order", data),
   verifyPayment: (data) => api.post("/payment/verify", data),
   checkSubscription: () => api.get("/payment/subscription/status"),
+  getRecentPayments: () => api.get("/payment/recent"),
 };
 
 export default api;

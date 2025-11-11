@@ -178,4 +178,32 @@ router.get("/subscription/status", auth, async (req, res) => {
   }
 });
 
+// GET /api/payments/recent - Get recent payments for dashboard
+router.get('/recent', auth, async (req, res) => {
+  try {
+    // Get the last 10 payments, sorted by most recent
+    const payments = await Payment.find({})
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('user', 'name email')
+      .populate('member', 'name');
+
+    const formattedPayments = payments.map(payment => ({
+      id: payment._id,
+      member: payment.member?.name || payment.user?.name || 'Guest',
+      user: payment.user?.name || 'Guest',
+      amount: payment.amount,
+      date: payment.createdAt.toISOString().split('T')[0],
+      status: payment.status,
+      plan: payment.planId || 'One-time Payment',
+      paymentMethod: 'Card' // Default, you can update this based on your payment method tracking
+    }));
+
+    res.json(formattedPayments);
+  } catch (err) {
+    console.error('Error fetching recent payments:', err);
+    res.status(500).json({ error: 'Failed to fetch recent payments', details: err.message });
+  }
+});
+
 module.exports = router;
