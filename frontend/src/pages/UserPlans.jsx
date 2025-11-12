@@ -275,6 +275,14 @@ const UserPlans = () => {
           </div>
         ))}
       </div>
+      <div className="flex justify-center mt-6">
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-gray-800 text-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 transition duration-300"
+        >
+          Already have plan?
+        </button>
+      </div>
     </div>
   );
 };
