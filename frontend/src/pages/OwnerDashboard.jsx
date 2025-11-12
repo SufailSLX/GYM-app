@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { paymentAPI } from "../services/api";
+import { X } from 'lucide-react';
 
 const DEMO_OWNER = {
   username: "GYM Owner",
@@ -13,6 +14,7 @@ const OwnerDashboard = () => {
   const [owner] = useState(DEMO_OWNER);
   const [payments, setPayments] = useState([]);
   const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -74,11 +76,67 @@ const OwnerDashboard = () => {
           <p>
             <span className="font-semibold">Valid till:</span> {owner.subscriptionExpiry}
           </p>
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-            Renew / Upgrade
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+          >
+            Info
           </button>
         </div>
       </section>
+
+      {/* Info Modal */}
+      {isModalOpen && (
+        <div className="w-full mb-6 bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Subscription Details</h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Current Plan:</span>
+                <span className="font-medium">{owner.subscriptionPlan}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Expiry Date:</span>
+                <span className="font-medium">{owner.subscriptionExpiry}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Status:</span>
+                <span className="text-green-600 font-medium">Active</span>
+              </div>
+              <div className="pt-4 mt-4 border-t border-gray-200">
+                <p className="text-sm text-gray-600">
+                  For any queries regarding your subscription, please contact our support team.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  // Add deactivation logic here
+                  console.log('Deactivate button clicked');
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+              >
+                Deactivate
+              </button>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recent Payments */}
       <section className="bg-white rounded-xl shadow p-6">
@@ -134,6 +192,7 @@ const OwnerDashboard = () => {
           </div>
         )}
       </section>
+
     </div>
   );
 };
