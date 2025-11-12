@@ -99,18 +99,31 @@ router.post("/verify", auth, async (req, res) => {
     }
 
     // Handle subscription activation
+    let subscriptionData = null;
     if (isSubscription && planId) {
       const duration = PLAN_DURATIONS[planId] || 30;
       
       // Calculate subscription expiry date
       const subscriptionValidTill = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
       
-      await User.findByIdAndUpdate(userId, {
-        isSubscribed: true,
-        subscriptionValidTill: subscriptionValidTill,
-      });
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          isSubscribed: true,
+          subscriptionValidTill: subscriptionValidTill,
+        },
+        { new: true }
+      );
       
       console.log(`Subscription activated for user ${userId}, valid until ${subscriptionValidTill}`);
+      
+      // Include subscription data in response
+      subscriptionData = {
+        isSubscribed: true,
+        subscriptionValidTill: subscriptionValidTill,
+        planId: planId,
+        daysRemaining: Math.ceil((subscriptionValidTill.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      };
     } else if (memberId) {
       // For member payments, append payment to member record
       await Member.findByIdAndUpdate(memberId, {
@@ -125,7 +138,8 @@ router.post("/verify", auth, async (req, res) => {
         id: payment._id,
         amount: payment.amount,
         status: payment.status,
-      }
+      },
+      ...(subscriptionData && { subscription: subscriptionData })
     });
   } catch (err) {
     console.error("Payment verification error:", err);
@@ -144,8 +158,21 @@ router.get("/subscription/status", auth, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Check if subscription is active
-    const isActive = isSubscriptionActive(user.subscriptionValidTill);
+    console.log(`Checking subscription status for user ${userId}:`, {
+      isSubscribed: user.isSubscribed,
+      subscriptionValidTill: user.subscriptionValidTill,
+      currentDate: new Date()
+    });
+
+    // Check if subscription is active - must have both isSubscribed flag and valid date
+    const hasValidDate = isSubscriptionActive(user.subscriptionValidTill);
+    const isActive = user.isSubscribed && hasValidDate;
+    
+    console.log(`Subscription status result:`, {
+      isSubscribed: user.isSubscribed,
+      hasValidDate: hasValidDate,
+      isActive: isActive
+    });
     
     // If subscription is active, return the details
     if (isActive) {
@@ -164,10 +191,14 @@ router.get("/subscription/status", auth, async (req, res) => {
       });
     }
 
-    // If no active subscription
+    // If no active subscription, return detailed info
     return res.json({
       isActive: false,
-      message: "No active subscription found"
+      isSubscribed: user.isSubscribed || false,
+      subscriptionValidTill: user.subscriptionValidTill || null,
+      message: user.isSubscribed 
+        ? "Subscription has expired" 
+        : "No active subscription found"
     });
   } catch (err) {
     console.error("Subscription status check error:", err);
@@ -203,6 +234,38 @@ router.get('/recent', auth, async (req, res) => {
   } catch (err) {
     console.error('Error fetching recent payments:', err);
     res.status(500).json({ error: 'Failed to fetch recent payments', details: err.message });
+  }
+});
+
+// POST /api/payment/subscription/deactivate - Deactivate subscription
+router.post("/subscription/deactivate", auth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Deactivate subscription by setting isSubscribed to false and clearing subscriptionValidTill
+    await User.findByIdAndUpdate(userId, {
+      isSubscribed: false,
+      subscriptionValidTill: null,
+    });
+
+    console.log(`Subscription deactivated for user ${userId}`);
+
+    return res.json({
+      status: "success",
+      message: "Subscription deactivated successfully"
+    });
+  } catch (err) {
+    console.error("Subscription deactivation error:", err);
+    return res.status(500).json({
+      error: "Failed to deactivate subscription",
+      details: err.message
+    });
   }
 });
 

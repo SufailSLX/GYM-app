@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./LoginForm.css";
-import { authAPI } from "../services/api";
+import { authAPI, paymentAPI } from "../services/api";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -149,16 +149,21 @@ const LoginForm = ({ setRole }) => {
       try {
         const subscriptionResponse = await paymentAPI.checkSubscription();
         if (subscriptionResponse.data && subscriptionResponse.data.isActive) {
+          // Set isLegacyOwner to false since they have an active subscription
+          localStorage.setItem('isLegacyOwner', 'false');
           // Redirect to dashboard if subscription is active
           window.location.href = "/owner/dashboard";
         } else {
+          // Set isLegacyOwner to true since they don't have an active subscription
+          localStorage.setItem('isLegacyOwner', 'true');
           // Redirect to plans page if no active subscription
           window.location.href = "/owner/plans";
         }
       } catch (error) {
         console.error('Error checking subscription status:', error);
-        // Default to dashboard if there's an error checking subscription
-        window.location.href = "/owner/dashboard";
+        // Default to plans page if there's an error checking subscription
+        localStorage.setItem('isLegacyOwner', 'true');
+        window.location.href = "/owner/plans";
       }
       
       toast.success("Login successful!");
@@ -169,9 +174,22 @@ const LoginForm = ({ setRole }) => {
         setRole("owner");
         setShowLegacy(false);
         
-        // For demo purposes, redirect to dashboard with hardcoded credentials
-        // In a real app, you would check subscription status as above
-        window.location.href = "/owner/dashboard";
+        // Check subscription status even for hardcoded credentials
+        try {
+          const subscriptionResponse = await paymentAPI.checkSubscription();
+          if (subscriptionResponse.data && subscriptionResponse.data.isActive) {
+            localStorage.setItem('isLegacyOwner', 'false');
+            window.location.href = "/owner/dashboard";
+          } else {
+            localStorage.setItem('isLegacyOwner', 'true');
+            window.location.href = "/owner/plans";
+          }
+        } catch (error) {
+          console.error('Error checking subscription status:', error);
+          // Default to plans page if there's an error
+          localStorage.setItem('isLegacyOwner', 'true');
+          window.location.href = "/owner/plans";
+        }
         toast.success("Login successful!");
       } else {
         setLegacyError("Invalid legacy owner credentials");

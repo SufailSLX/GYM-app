@@ -55,6 +55,7 @@ export const paymentAPI = {
   verifyPayment: (data) => api.post("/payment/verify", data),
   checkSubscription: () => api.get("/payment/subscription/status"),
   getRecentPayments: () => api.get("/payment/recent"),
+  deactivateSubscription: () => api.post("/payment/subscription/deactivate"),
 };
 
 export default api;

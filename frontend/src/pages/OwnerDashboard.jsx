@@ -1,40 +1,95 @@
 import React, { useState, useEffect } from "react";
 import { paymentAPI } from "../services/api";
 import { X } from 'lucide-react';
-
-const DEMO_OWNER = {
-  username: "GYM Owner",
-  email: "gym@mail.com",
-  subscriptionPlan: "Premium Plan",
-  subscriptionExpiry: "2025-12-31",
-};
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const OwnerDashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [owner] = useState(DEMO_OWNER);
+  const [owner, setOwner] = useState({
+    username: "GYM Owner",
+    email: "gym@mail.com",
+    subscriptionPlan: "Premium Plan",
+    subscriptionExpiry: null,
+  });
   const [payments, setPayments] = useState([]);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState(null);
 
   useEffect(() => {
-    const fetchPayments = async () => {
+    const fetchData = async () => {
       try {
-        const response = await paymentAPI.getRecentPayments();
-        setPayments(response.data);
+        // Fetch subscription status
+        const subscriptionResponse = await paymentAPI.checkSubscription();
+        const subscription = subscriptionResponse.data;
+        
+        if (subscription && subscription.isActive) {
+          // Format the validTill date
+          const validTillDate = new Date(subscription.validTill);
+          const formattedDate = validTillDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          
+          setSubscriptionData(subscription);
+          setOwner(prev => ({
+            ...prev,
+            subscriptionExpiry: formattedDate,
+            subscriptionValidTill: subscription.validTill,
+            planId: subscription.planId || 'basic'
+          }));
+        } else {
+          // Fallback to localStorage if API doesn't have it
+          const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          if (storedUser.subscriptionValidTill) {
+            const validTillDate = new Date(storedUser.subscriptionValidTill);
+            const formattedDate = validTillDate.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            });
+            
+            setOwner(prev => ({
+              ...prev,
+              subscriptionExpiry: formattedDate,
+              subscriptionValidTill: storedUser.subscriptionValidTill
+            }));
+          }
+        }
+
+        // Fetch recent payments
+        const paymentsResponse = await paymentAPI.getRecentPayments();
+        setPayments(paymentsResponse.data);
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching payments:', err);
-        setError('Failed to load payment data');
+        console.error('Error fetching data:', err);
+        setError('Failed to load data');
+        
+        // Fallback to localStorage
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        if (storedUser.subscriptionValidTill) {
+          const validTillDate = new Date(storedUser.subscriptionValidTill);
+          const formattedDate = validTillDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          
+          setOwner(prev => ({
+            ...prev,
+            subscriptionExpiry: formattedDate,
+            subscriptionValidTill: storedUser.subscriptionValidTill
+          }));
+        }
+        
         setLoading(false);
       }
     };
 
-    fetchPayments();
-  }, []);
-
-  useEffect(() => {
-    // Demo: fake loading
-    setTimeout(() => setLoading(false), 900);
+    fetchData();
   }, []);
 
   if (loading)
@@ -74,7 +129,7 @@ const OwnerDashboard = () => {
             <span className="font-semibold">Plan:</span> {owner.subscriptionPlan}
           </p>
           <p>
-            <span className="font-semibold">Valid till:</span> {owner.subscriptionExpiry}
+            <span className="font-semibold">Valid till:</span> {owner.subscriptionExpiry || 'Loading...'}
           </p>
           <button 
             onClick={() => setIsModalOpen(true)}
@@ -105,31 +160,68 @@ const OwnerDashboard = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Expiry Date:</span>
-                <span className="font-medium">{owner.subscriptionExpiry}</span>
+                <span className="font-medium">{owner.subscriptionExpiry || 'N/A'}</span>
               </div>
+              {subscriptionData && subscriptionData.daysRemaining !== undefined && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Days Remaining:</span>
+                  <span className="font-medium">{subscriptionData.daysRemaining} days</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Status:</span>
                 <span className="text-green-600 font-medium">Active</span>
               </div>
               <div className="pt-4 mt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  For any queries regarding your subscription, please contact our support team.
+                  Your subscription is valid for 30 days from the payment date. For any queries regarding your subscription, please contact our support team.
                 </p>
               </div>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button
-                onClick={() => {
-                  // Add deactivation logic here
-                  console.log('Deactivate button clicked');
+                onClick={async () => {
+                  if (window.confirm('Are you sure you want to deactivate your subscription? You will be logged out and need to subscribe again to access the dashboard.')) {
+                    try {
+                      setIsDeactivating(true);
+                      await paymentAPI.deactivateSubscription();
+                      
+                      // Clear subscription status from local storage
+                      const user = JSON.parse(localStorage.getItem('user') || '{}');
+                      localStorage.setItem('user', JSON.stringify({
+                        ...user,
+                        isSubscribed: false,
+                        subscriptionValidTill: null
+                      }));
+                      
+                      // Set isLegacyOwner to true so they'll be redirected to plans page on next login
+                      localStorage.setItem('isLegacyOwner', 'true');
+                      
+                      toast.success('Subscription deactivated successfully');
+                      
+                      // Clear all authentication related data
+                      localStorage.removeItem('token');
+                      localStorage.removeItem('user');
+                      localStorage.removeItem('role');
+                      
+                      // Redirect to login page
+                      window.location.href = '/login';
+                    } catch (error) {
+                      console.error('Error deactivating subscription:', error);
+                      toast.error(error.response?.data?.error || 'Failed to deactivate subscription');
+                      setIsDeactivating(false);
+                    }
+                  }
                 }}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+                disabled={isDeactivating}
+                className={`px-4 py-2 ${isDeactivating ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'} text-white rounded-md transition-colors`}
               >
-                Deactivate
+                {isDeactivating ? 'Deactivating...' : 'Deactivate'}
               </button>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                disabled={isDeactivating}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 Close
               </button>

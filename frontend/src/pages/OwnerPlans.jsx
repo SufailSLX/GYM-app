@@ -34,23 +34,28 @@ const OwnerPlans = () => {
       }
 
       // Create payment order
-      const response = await paymentAPI.createOrder({
+      const orderResponse = await paymentAPI.createOrder({
         amount: 199 * 100,
         currency: 'INR',
         isSubscription: true,
         planId: 'basic'
       });
 
+      // Extract order data from axios response
+      const orderData = orderResponse.data;
+      console.log('Order created:', orderData);
+
       // Ensure amount is a number and convert to paise if needed
-      const amountInPaise = typeof response.amount === 'number' ? response.amount : 199 * 100;
+      // Razorpay expects amount in paise, backend returns it in paise already
+      const amountInPaise = typeof orderData.amount === 'number' ? orderData.amount : 199 * 100;
       
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_ReNEKukQGekglb",
         amount: amountInPaise,
-        currency: response.currency || 'INR',
+        currency: orderData.currency || 'INR',
         name: 'GYM Pro Subscription',
         description: 'Monthly Subscription',
-        order_id: response.orderId,
+        order_id: orderData.orderId,
         handler: async function (razorpayResponse) {
           try {
             console.log('Razorpay response:', razorpayResponse);
@@ -58,12 +63,12 @@ const OwnerPlans = () => {
             // In test mode, we might not get all the fields
             const verificationData = {
               razorpay_payment_id: razorpayResponse.razorpay_payment_id,
-              razorpay_order_id: response.razorpayOrderId, // Use the order ID from the createOrder response
+              razorpay_order_id: orderData.orderId, // Use the order ID from the createOrder response
               razorpay_signature: razorpayResponse.razorpay_signature || 'test_signature', // For test mode
               isSubscription: true,
               planId: 'basic',
-              amount: response.amount, // Use the amount from the order response
-              currency: response.currency
+              amount: orderData.amount, // Use the amount from the order response
+              currency: orderData.currency || 'INR'
             };
             
             console.log('Sending verification data:', verificationData);
@@ -73,35 +78,56 @@ const OwnerPlans = () => {
             
             console.log('Verification response:', verificationResponse);
 
-            // Update local storage to mark as subscribed regardless of verification in test mode
+            // Update localStorage with subscription data from backend response
+            // This ensures frontend and backend are in sync
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            localStorage.setItem('user', JSON.stringify({
-              ...user,
-              isSubscribed: true,
-              subscriptionValidTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-            }));
+            
+            if (verificationResponse.data?.subscription) {
+              // Use subscription data from backend
+              const subscription = verificationResponse.data.subscription;
+              const subscriptionValidTill = new Date(subscription.subscriptionValidTill).toISOString();
+              
+              localStorage.setItem('user', JSON.stringify({
+                ...user,
+                isSubscribed: subscription.isSubscribed,
+                subscriptionValidTill: subscriptionValidTill
+              }));
+              
+              console.log('Updated localStorage with subscription from backend:', {
+                isSubscribed: subscription.isSubscribed,
+                subscriptionValidTill: subscriptionValidTill,
+                planId: subscription.planId,
+                daysRemaining: subscription.daysRemaining
+              });
+            } else {
+              // Fallback: calculate subscription if backend doesn't return it (shouldn't happen)
+              console.warn('No subscription data in verification response, using fallback');
+              const subscriptionValidTill = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+              
+              localStorage.setItem('user', JSON.stringify({
+                ...user,
+                isSubscribed: true,
+                subscriptionValidTill: subscriptionValidTill.toISOString()
+              }));
+            }
 
             // Update isLegacyOwner in local storage to false since they've now subscribed
             localStorage.setItem('isLegacyOwner', 'false');
             
-            // For testing purposes, we'll consider the payment successful if we get here
             toast.success('Payment successful! Redirecting to dashboard...');
             
-            // Force a page reload to reset the app state
+            // Small delay to ensure localStorage is written
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Force a full page reload to reset the app state
             window.location.href = '/owner/dashboard';
           } catch (error) {
             console.error('Payment verification failed:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Payment verification failed';
             console.error('Error details:', errorMessage);
             
-            // For testing purposes, we'll still redirect to dashboard even if verification fails
-            if (process.env.NODE_ENV === 'development') {
-              console.warn('In development mode, proceeding to dashboard despite verification error');
-              localStorage.setItem('isLegacyOwner', 'false');
-              window.location.href = '/owner/dashboard';
-            } else {
-              toast.error(`Payment verification failed: ${errorMessage}. Please contact support.`);
-            }
+            // Don't proceed if verification fails - payment must be verified in database
+            toast.error(`Payment verification failed: ${errorMessage}. Please contact support.`);
           }
         },
         prefill: {
@@ -132,6 +158,112 @@ const OwnerPlans = () => {
     localStorage.removeItem('role');
     // Force a full page reload to reset the app state
     window.location.href = '/login';
+  };
+
+  const handleCheckExistingPlan = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Checking for existing subscription...');
+      
+      // Check if user is authenticated
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please login first');
+        window.location.href = '/login';
+        return;
+      }
+      
+      // Check localStorage first (this is updated immediately after payment)
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      console.log('Stored user from localStorage:', storedUser);
+      
+      if (storedUser.isSubscribed && storedUser.subscriptionValidTill) {
+        // Parse the date string from localStorage
+        const validTillDate = new Date(storedUser.subscriptionValidTill);
+        const now = new Date();
+        const hasActiveSubscription = validTillDate > now;
+        
+        console.log('LocalStorage subscription check:', {
+          isSubscribed: storedUser.isSubscribed,
+          subscriptionValidTill: storedUser.subscriptionValidTill,
+          validTillDate: validTillDate,
+          now: now,
+          isActive: hasActiveSubscription,
+          timeDiff: validTillDate.getTime() - now.getTime()
+        });
+        
+        if (hasActiveSubscription) {
+          // Update isLegacyOwner flag
+          localStorage.setItem('isLegacyOwner', 'false');
+          console.log('✅ Active subscription found in localStorage, redirecting...');
+          toast.success('Active subscription found! Redirecting to dashboard...');
+          // Small delay to ensure localStorage is written and toast is shown
+          await new Promise(resolve => setTimeout(resolve, 800));
+          // Use window.location.href to force full page reload and re-check subscription
+          window.location.href = '/owner/dashboard';
+          return;
+        } else {
+          console.log('⚠️ LocalStorage subscription expired');
+        }
+      } else {
+        console.log('⚠️ No subscription data in localStorage');
+      }
+      
+      // If localStorage doesn't have active subscription, check API
+      console.log('Checking API for subscription status...');
+      try {
+        const subscriptionResponse = await paymentAPI.checkSubscription();
+        console.log('API subscription response:', subscriptionResponse);
+        
+        const apiHasSubscription = subscriptionResponse.data && subscriptionResponse.data.isActive;
+        console.log('API subscription isActive:', apiHasSubscription);
+        
+        if (apiHasSubscription) {
+          // Update localStorage with API data
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          
+          // Handle both Date objects and ISO strings
+          let validTill;
+          if (subscriptionResponse.data.validTill) {
+            validTill = subscriptionResponse.data.validTill instanceof Date 
+              ? subscriptionResponse.data.validTill.toISOString()
+              : new Date(subscriptionResponse.data.validTill).toISOString();
+          }
+          
+          // Update user object with subscription info
+          const updatedUser = {
+            ...user,
+            isSubscribed: true,
+            ...(validTill && { subscriptionValidTill: validTill })
+          };
+          
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          localStorage.setItem('isLegacyOwner', 'false');
+          
+          console.log('Updated localStorage with API subscription data:', updatedUser);
+          console.log('✅ Active subscription found via API, redirecting...');
+          
+          toast.success('Active subscription found! Redirecting to dashboard...');
+          // Small delay to ensure localStorage is written and toast is shown
+          await new Promise(resolve => setTimeout(resolve, 800));
+          // Use window.location.href to force full page reload and re-check subscription
+          window.location.href = '/owner/dashboard';
+        } else {
+          console.log('❌ No active subscription found in API');
+          toast.error('No active subscription found. Please subscribe to continue.');
+        }
+      } catch (error) {
+        console.error('Error checking subscription via API:', error);
+        console.error('Error response:', error.response?.data);
+        const errorMessage = error.response?.data?.error || error.message || 'Failed to check subscription status';
+        toast.error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error in handleCheckExistingPlan:', error);
+      toast.error('An error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -235,7 +367,7 @@ const OwnerPlans = () => {
           {/* Footer */}
           <div className="flex justify-between items-center px-5 py-5 border-t border-[#ebebec]">
             <label className="relative text-[32px] text-[#2B2B2F] font-extrabold">
-              <sup className="text-[13px]">INR</sup>9
+              <sup className="text-[13px]">INR</sup>19,900
               <sub className="absolute bottom-[5px] text-[11px] text-[#5F5D6B]">
                 /mo
               </sub>
@@ -253,10 +385,18 @@ const OwnerPlans = () => {
         </form>
 
         {/* Go Back Button */}
-        <div className="flex justify-center pb-5">
+        <div className="flex flex-col items-center pb-5">
+          <button
+            onClick={handleCheckExistingPlan}
+            disabled={isLoading}
+            className={`mt-3 w-[200px] h-[38px] border border-gray-300 ${isLoading ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:text-black hover:border-gray-400'} rounded-md font-medium text-[13px] transition-all duration-300`}
+          >
+            {isLoading ? 'Checking...' : 'Already have a plan?'}
+          </button>
           <button
             onClick={handleGoBack}
-            className="mt-3 w-[200px] h-[38px] border border-gray-300 text-gray-700 hover:text-black hover:border-gray-400 rounded-md font-medium text-[13px] transition-all duration-300"
+            disabled={isLoading}
+            className={`mt-3 w-[200px] h-[38px] border border-gray-300 ${isLoading ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:text-black hover:border-gray-400'} rounded-md font-medium text-[13px] transition-all duration-300`}
           >
             Go Back to Login
           </button>
