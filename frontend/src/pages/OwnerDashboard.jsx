@@ -101,7 +101,9 @@ const OwnerDashboard = () => {
                 {payments.length > 0 ? (
                   payments.map((payment) => (
                     <tr key={payment.id} className="hover:bg-gray-50">
-                      <td className="py-3 px-4 border-b">{payment.member}</td>
+                      <td className="py-3 px-4 border-b">
+                        {payment.member || payment.user || 'Guest'}
+                      </td>
                       <td className="py-3 px-4 border-b text-right">
                         ₹{payment.amount.toLocaleString('en-IN')}
                       </td>

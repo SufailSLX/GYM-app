@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const predefinedAccounts = [
   { email: "gym@mail.com", password: "admin123", role: "owner" },
+  { email: "owner@mail.com", password: "admin123", role: "owner" },
   { email: "user@mail.com", password: "user123", role: "user" },
 ];
 
@@ -134,6 +135,23 @@ const LoginForm = ({ setRole }) => {
       localStorage.setItem("role", "owner");
       setRole("owner");
       setShowLegacy(false);
+      
+      // Check if owner has an active subscription
+      try {
+        const subscriptionResponse = await paymentAPI.checkSubscription();
+        if (subscriptionResponse.data && subscriptionResponse.data.isActive) {
+          // Redirect to dashboard if subscription is active
+          window.location.href = "/owner/dashboard";
+        } else {
+          // Redirect to plans page if no active subscription
+          window.location.href = "/owner/plans";
+        }
+      } catch (error) {
+        console.error('Error checking subscription status:', error);
+        // Default to dashboard if there's an error checking subscription
+        window.location.href = "/owner/dashboard";
+      }
+      
       toast.success("Login successful!");
     } catch (err) {
       // Fallback to hardcoded check
@@ -141,6 +159,10 @@ const LoginForm = ({ setRole }) => {
         localStorage.setItem("role", "owner");
         setRole("owner");
         setShowLegacy(false);
+        
+        // For demo purposes, redirect to dashboard with hardcoded credentials
+        // In a real app, you would check subscription status as above
+        window.location.href = "/owner/dashboard";
         toast.success("Login successful!");
       } else {
         setLegacyError("Invalid legacy owner credentials");

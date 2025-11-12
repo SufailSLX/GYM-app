@@ -99,8 +99,12 @@ function App() {
         {!role && (
           <Route path="*" element={<Navigate to="/login" />} />
         )}
-        {role === "owner" && isLegacyOwner && <Route path="/*" element={<OwnerPlans />} />}
-        {/* {role === "owner" && !isLegacyOwner && <Route path="/*" element={<OwnerDashboard />} />} */}
+        {role === "owner" && isLegacyOwner && (
+          <>
+            <Route path="/owner/dashboard" element={<OwnerDashboard />} />
+            <Route path="/*" element={<OwnerPlans />} />
+          </>
+        )}
         {role === "user" && hasActiveSubscription && (
           <Route path="/*" element={<DetailsPage />} />
         )}
