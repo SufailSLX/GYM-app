@@ -28,14 +28,20 @@ const DetailsPage = () => {
     setTimeout(() => setLoading(false), 900);
   }, []);
 
-  const logoutHandler = () => {
-    // Clear all auth related data
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("role");
-    
-    // Redirect to login page
-    navigate("/login");
+  const logoutHandler = async () => {
+    try {
+      // Clear all auth related data
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("role");
+      
+      // Force a hard redirect to ensure all state is cleared
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback to hard redirect if there's an error
+      window.location.href = '/login';
+    }
   };
 
   if (loading) {

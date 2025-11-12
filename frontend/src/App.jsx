@@ -93,24 +93,34 @@ function App() {
   return (
     <Router>
       <Routes>
-        {!role && (
-          <Route path="/login" element={<LoginForm setRole={setRole} />} />
-        )}
-        {!role && (
-          <Route path="*" element={<Navigate to="/login" />} />
-        )}
+        {/* Public routes */}
+        <Route path="/login" element={!role ? <LoginForm setRole={setRole} /> : <Navigate to="/" />} />
+        
+        {/* Protected routes */}
         {role === "owner" && isLegacyOwner && (
           <>
             <Route path="/owner/dashboard" element={<OwnerDashboard />} />
-            <Route path="/*" element={<OwnerPlans />} />
+            <Route path="/owner/plans" element={<OwnerPlans />} />
           </>
         )}
+        
         {role === "user" && hasActiveSubscription && (
-          <Route path="/*" element={<DetailsPage />} />
+          <Route path="/dashboard" element={<DetailsPage />} />
         )}
+        
         {role === "user" && !hasActiveSubscription && (
-          <Route path="/*" element={<UserPlans />} />
+          <Route path="/plans" element={<UserPlans />} />
         )}
+        
+        {/* Redirects */}
+        <Route path="/" element={
+          !role ? <Navigate to="/login" /> : 
+          role === 'owner' ? <Navigate to="/owner/dashboard" /> :
+          hasActiveSubscription ? <Navigate to="/dashboard" /> :
+          <Navigate to="/plans" />
+        } />
+        
+        {/* Catch-all route */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "./LoginForm.css";
 import { authAPI } from "../services/api";
 import { toast, ToastContainer } from "react-toastify";
@@ -11,6 +12,15 @@ const predefinedAccounts = [
 ];
 
 const LoginForm = ({ setRole }) => {
+  const navigate = useNavigate();
+  
+  // Check if user is already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -49,8 +59,8 @@ const LoginForm = ({ setRole }) => {
         setRole(user.role);
         
         toast.success("Login successful!");
-        // Redirect or perform any post-login action
-        window.location.href = "/dashboard";
+        // Redirect to dashboard
+        navigate('/dashboard');
       } else {
         throw new Error("Invalid response from server");
       }
@@ -99,11 +109,10 @@ const LoginForm = ({ setRole }) => {
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.setItem("role", user.role);
         setRole(user.role);
-        setRole("user");
 
         toast.success(`✅ Account created for ${username}!`);
-        // Redirect to dashboard or home page
-        window.location.href = "/dashboard";
+        // Redirect to dashboard after successful signup
+        navigate('/dashboard');
       } else {
         throw new Error("Invalid response from server");
       }
